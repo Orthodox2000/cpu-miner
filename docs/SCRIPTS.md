@@ -7,6 +7,13 @@ designed to be launched with:
 powershell.exe -ExecutionPolicy Bypass -File .\scripts\<name>.ps1
 ```
 
+## One-click entry point
+
+| File | Purpose | Notes |
+|---|---|---|
+| `RUN.cmd` | The drop-and-play launcher | Double-click it. It calls `scripts\Run.ps1`, keeps the console open on failure, and needs no commands typed. |
+| `Run.ps1` | Logic behind `RUN.cmd` | Detects an existing install; if missing, it invokes `Install.ps1` once with UAC (passing the original user and Startup folder), waits for the heat sensor, starts XMRig, then opens `Menu.ps1`. Re-running it downloads nothing and prompts nothing. |
+
 ## Core control
 
 | Script | Purpose | How it is started | Notes |
@@ -30,7 +37,7 @@ powershell.exe -ExecutionPolicy Bypass -File .\scripts\<name>.ps1
 |---|---|---|---|
 | `Earnings.ps1` | Unmineable balance and payout progress | Manually, or called by `Menu.ps1`/`HealthCheck.ps1` | Caches for 5 minutes in `state\earnings.cache`. `-Raw` gives machine fields; `-Refresh` forces network. |
 | `HealthCheck.ps1` | Read-only verification of the whole setup | Manually | Checks config, wallet, binaries, process, temperature source, tasks, shortcut, firewall rules and earnings. Exits 1 on any critical failure. |
-| `Install.ps1` | One-time installer | Manually, elevated | Verifies admin, copies config, sets ACLs, downloads and checksum-verifies XMRig 6.26.0 and LHM 0.9.6, writes LHM config, creates firewall rules, scheduled tasks and startup shortcut. Accepts `-Wallet` to override the committed address. |
+| `Install.ps1` | One-time / repair installer | `Run.ps1` with UAC, or manually elevated | Idempotent: skips downloads when verified binaries already exist. Copies config, sets ACLs, checksum-verifies XMRig 6.26.0 and LHM 0.9.6, writes LHM config, creates firewall rules, tasks and shortcut. `-Owner` / `-StartupFolder` keep setup on the launching account after UAC; `-Wallet` overrides the committed address. |
 | `Uninstall.ps1` | Removes tasks, shortcut, firewall rules and stops mining | Manually, elevated | `-RemoveData` also deletes `%ProgramData%\CpuMiner`. |
 
 ## State and log files

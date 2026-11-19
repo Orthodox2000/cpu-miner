@@ -32,7 +32,11 @@ if ($null -ne $temp) {
 
 foreach ($task in @('CpuMiner-Supervisor', 'CpuMiner-LHM')) {
     $t = Get-ScheduledTask -TaskName $task -ErrorAction SilentlyContinue
-    if ($t -and $t.State -eq 'Ready') { Ok ($task + ' task registered') } else { Bad ($task + ' task missing or not ready') }
+    if ($t -and @('Ready', 'Running') -contains $t.State) {
+        Ok ($task + ' task registered (' + $t.State + ')')
+    } else {
+        Bad ($task + ' task missing or not ready')
+    }
 }
 if (Test-Path -LiteralPath (Join-Path ([Environment]::GetFolderPath('Startup')) 'LTC Miner.lnk')) {
     Ok 'control panel startup shortcut present'

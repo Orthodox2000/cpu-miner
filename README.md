@@ -12,6 +12,23 @@ pays out as Litecoin through Unmineable, and keeps the same behaviour:
 
 Nothing in this repo restarts or shuts down the PC — only the miner process.
 
+## Quick start (drop and play)
+
+1. Copy this whole folder to the Windows 10 PC — anywhere (Desktop, Downloads,
+   a USB stick, etc.).
+2. Double-click **`RUN.cmd`**.
+3. Approve the one-time administrator prompt.
+
+That is all. The first run downloads XMRig and LibreHardwareMonitor, verifies
+their SHA-256 checksums, installs the background tasks and firewall rules,
+waits for the heat sensor, starts mining, and opens the control panel.
+
+Later runs detect the existing install and go straight to mining — no repeated
+downloads and, in the normal case, no administrator prompt. Everything is
+visible: logs are in `%ProgramData%\CpuMiner\logs`.
+
+Keep the folder after installation: the scheduled tasks launch its scripts.
+
 See [docs/SCRIPTS.md](docs/SCRIPTS.md) for a description of every script and
 state/log file.
 
@@ -33,8 +50,8 @@ It is the single source of truth in `config/wallet.txt` and is read by
   git-ignored for local overrides.
 - Config/logs live under `%ProgramData%\CpuMiner` with ACLs restricted to your
   user and SYSTEM.
-- XMRig and LibreHardwareMonitor are downloaded from their official GitHub
-  releases and verified by SHA-256 before use.
+- On first install, XMRig and LibreHardwareMonitor are downloaded from their
+  official GitHub releases and verified by SHA-256; later runs reuse them.
 - XMRig runs as your normal user, not administrator.
 - Windows Firewall is configured so XMRig may only reach the pool on TCP 443
   and DNS on UDP 53.
@@ -43,12 +60,12 @@ It is the single source of truth in `config/wallet.txt` and is read by
   than running unguarded (`TEMP_REQUIRED=true`).
 - `--donate-level=0` and TLS pool connection are configured by default.
 
-## Install (Windows 10, 64-bit, admin required)
+## Manual / advanced install
 
-1. Copy this repo to the Windows machine (e.g. `C:\Users\<you>\cpu-miner`).
-2. The wallet address is already in `config/wallet.txt`, so the installer uses
-   it automatically. To use a different address, pass `-Wallet 'LTC...'`.
-3. Open **PowerShell as Administrator** in the repo folder and run:
+`RUN.cmd` already does all of this. Use the commands below only if you want to
+install without starting mining, or repair an existing setup.
+
+Open **PowerShell as Administrator** in the repo folder and run:
 
 ```powershell
 powershell.exe -ExecutionPolicy Bypass -File .\scripts\Install.ps1
@@ -64,18 +81,15 @@ The installer will:
 
 - verify admin rights;
 - create `%ProgramData%\CpuMiner\{state,logs}` with restricted ACLs;
-- download and checksum-verify XMRig 6.26.0 and LibreHardwareMonitor 0.9.6;
+- download and checksum-verify XMRig 6.26.0 and LibreHardwareMonitor 0.9.6 only
+  if they are missing (verified cached copies are reused);
 - enable LibreHardwareMonitor's local web server on `127.0.0.1:8085`;
 - install firewall rules and two scheduled tasks:
   - `CpuMiner-Supervisor` (watchdog + heat guard + 45-minute restart),
   - `CpuMiner-LHM` (elevated temperature sensor);
 - add an `LTC Miner` shortcut to your Startup folder.
 
-Log off and on once, or run the control panel now:
-
-```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\scripts\ResumeOnLogin.ps1
-```
+Afterwards, double-click `RUN.cmd` to start mining and open the control panel.
 
 ## Control panel
 

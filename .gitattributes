@@ -1,0 +1,6 @@
+# Windows batch launchers need CRLF; keep PowerShell consistent too.
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.md text eol=lf
+*.env text eol=lf
+*.txt text eol=lf
