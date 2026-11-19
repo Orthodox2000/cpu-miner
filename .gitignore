@@ -1,0 +1,15 @@
+# Never commit the wallet or local state.
+config/local.env
+bin/
+logs/
+state/
+*.log
+*.cache
+*.pid
+*.tmp
+
+# Windows / editor noise
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
