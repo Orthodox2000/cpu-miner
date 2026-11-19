@@ -12,10 +12,25 @@ pays out as Litecoin through Unmineable, and keeps the same behaviour:
 
 Nothing in this repo restarts or shuts down the PC — only the miner process.
 
+See [docs/SCRIPTS.md](docs/SCRIPTS.md) for a description of every script and
+state/log file.
+
+## Payout wallet
+
+The committed LTC payout address is:
+
+```text
+ltc1qh8u0cpkuhk9rn5sz2dwe0j4hu8as52f6tuyml3
+```
+
+It is the single source of truth in `config/wallet.txt` and is read by
+`Install.ps1` when no `-Wallet` override is supplied.
+
 ## Safety and security
 
-- **No wallet in git.** `config/local.env` is ignored. The installer copies it
-  to `%ProgramData%\CpuMiner\config.env` (or you pass `-Wallet`).
+- The LTC payout address is public and committed in `config/wallet.txt`. No
+  private keys or secrets are stored here. `config/local.env` is optional and
+  git-ignored for local overrides.
 - Config/logs live under `%ProgramData%\CpuMiner` with ACLs restricted to your
   user and SYSTEM.
 - XMRig and LibreHardwareMonitor are downloaded from their official GitHub
@@ -31,11 +46,8 @@ Nothing in this repo restarts or shuts down the PC — only the miner process.
 ## Install (Windows 10, 64-bit, admin required)
 
 1. Copy this repo to the Windows machine (e.g. `C:\Users\<you>\cpu-miner`).
-2. Bring the local config with the wallet. On the Linux machine it is
-   `~/mining/wallet.txt`. Either:
-   - copy `config/local.env` from this repo (it is already filled from the
-     Linux machine but is git-ignored), or
-   - pass the address to the installer with `-Wallet 'LTC...'`.
+2. The wallet address is already in `config/wallet.txt`, so the installer uses
+   it automatically. To use a different address, pass `-Wallet 'LTC...'`.
 3. Open **PowerShell as Administrator** in the repo folder and run:
 
 ```powershell

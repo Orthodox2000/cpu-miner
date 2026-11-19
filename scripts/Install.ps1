@@ -48,14 +48,21 @@ foreach ($dir in @($data, $state, $logs, $bin)) {
     if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
 }
 
-# --- config (wallet never lives in git) -----------------------------------
+# --- config ----------------------------------------------------------------
 if (-not (Test-Path -LiteralPath $configPath)) {
     $local = Join-Path $repo 'config\local.env'
     if (Test-Path -LiteralPath $local) {
         Copy-Item -LiteralPath $local -Destination $configPath -Force
-        Write-Host 'Copied config\local.env (from the Linux machine).'
+        Write-Host 'Copied config\local.env (local override).'
     } else {
         Copy-Item -LiteralPath (Join-Path $repo 'config\local.example.env') -Destination $configPath -Force
+    }
+}
+if ([string]::IsNullOrWhiteSpace($Wallet)) {
+    $walletFile = Join-Path $repo 'config\wallet.txt'
+    if (Test-Path -LiteralPath $walletFile) {
+        $Wallet = (Get-Content -LiteralPath $walletFile -Raw).Trim()
+        Write-Host 'Using wallet address from config\wallet.txt.'
     }
 }
 if (-not [string]::IsNullOrWhiteSpace($Wallet)) {

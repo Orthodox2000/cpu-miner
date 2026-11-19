@@ -1,4 +1,5 @@
-# Never commit the wallet or local state.
+# The public payout address is committed in config/wallet.txt.
+# Local overrides and runtime state are never committed.
 config/local.env
 bin/
 logs/
