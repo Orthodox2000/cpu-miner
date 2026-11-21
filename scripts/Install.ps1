@@ -3,11 +3,18 @@
 # The payout address comes from config\wallet.txt unless -Wallet is supplied.
 # RUN.cmd passes -Owner / -StartupFolder so a UAC prompt for a different admin
 # account still configures the account that launched the runner.
+# UNATTENDED.cmd adds -Unattended: auto-login, RustDesk startup and no-sleep,
+# all scoped to this PC. Use -BlankPassword to try a passwordless account.
 
 param(
     [string]$Wallet,
     [string]$Owner,
-    [string]$StartupFolder
+    [string]$StartupFolder,
+    [switch]$Unattended,
+    [switch]$BlankPassword,
+    [switch]$SkipAutoLogin,
+    [switch]$SkipRustDesk,
+    [switch]$SkipPower
 )
 
 $ErrorActionPreference = 'Stop'
@@ -48,6 +55,112 @@ function Get-XmrigExpectedSha {
         }
     }
     throw 'Could not find XMRig checksum in SHA256SUMS.'
+}
+
+function Enable-AutoLogin {
+    param([string]$OwnerAccount)
+
+    if ([string]::IsNullOrWhiteSpace($OwnerAccount)) { $OwnerAccount = "$env:USERDOMAIN\$env:USERNAME" }
+    if ($OwnerAccount -like '*\*') {
+        $domain, $account = $OwnerAccount -split '\', 2
+    } else {
+        $domain = $env:COMPUTERNAME
+        $account = $OwnerAccount
+    }
+
+    Write-Host ''
+    Write-Host 'AUTO-LOGIN WARNING - THIS PC ONLY' -ForegroundColor Red
+    Write-Host 'The Windows sign-in prompt will be skipped on this computer.'
+    Write-Host 'Anyone with physical access will land directly on the desktop.'
+    if ($BlankPassword) {
+        $password = ''
+        Write-Host 'Using a blank password. Windows 10 may refuse this; a password is more reliable.' -ForegroundColor Yellow
+    } else {
+        $secure = Read-Host -Prompt ("Windows password for '{0}' (hidden input)" -f $OwnerAccount) -AsSecureString
+        $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+        try { $password = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr) }
+        finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+    }
+
+    $key = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+    Set-ItemProperty -Path $key -Name 'AutoAdminLogon' -Value '1' -Type String
+    Set-ItemProperty -Path $key -Name 'DefaultUserName' -Value $account -Type String
+    Set-ItemProperty -Path $key -Name 'DefaultDomainName' -Value $domain -Type String
+    Set-ItemProperty -Path $key -Name 'DefaultPassword' -Value $password -Type String
+    Set-ItemProperty -Path $key -Name 'AutoLogonCount' -Value 0 -Type DWord
+    Remove-ItemProperty -Path $key -Name 'ForceAutoLogon' -ErrorAction SilentlyContinue
+
+    $passwordless = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\PasswordLess\Device'
+    if (-not (Test-Path -LiteralPath $passwordless)) { New-Item -Path $passwordless -Force | Out-Null }
+    Set-ItemProperty -Path $passwordless -Name 'DevicePasswordLessBuildVersion' -Value 0 -Type DWord
+
+    Write-Host ("Auto-login configured for {0}\{1} on this computer." -f $domain, $account) -ForegroundColor Green
+    if (-not $BlankPassword) {
+        Write-Host 'The password is stored in the local registry. Keep this PC physically secure.' -ForegroundColor Yellow
+    }
+}
+
+function Find-RustDeskExe {
+    $roots = @()
+    foreach ($base in @($env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:LOCALAPPDATA)) {
+        if (-not $base) { continue }
+        $roots += Join-Path $base 'RustDesk'
+    }
+    if ($env:LOCALAPPDATA) {
+        $roots += Join-Path $env:LOCALAPPDATA 'Programs\RustDesk'
+    }
+    $uninstallKeys = @(
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*'
+    )
+    foreach ($p in (Get-ItemProperty $uninstallKeys -ErrorAction SilentlyContinue)) {
+        if ($p.DisplayName -like 'RustDesk*' -and $p.InstallLocation) { $roots += $p.InstallLocation }
+    }
+    foreach ($root in ($roots | Where-Object { $_ })) {
+        $candidate = Join-Path $root 'rustdesk.exe'
+        if (Test-Path -LiteralPath $candidate) { return $candidate }
+    }
+    return $null
+}
+
+function Enable-RustDeskStartup {
+    param([string]$ShortcutFolder)
+
+    $service = Get-Service -Name 'RustDesk*' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($service) {
+        try {
+            Set-Service -Name $service.Name -StartupType Automatic -ErrorAction Stop
+            Start-Service -Name $service.Name -ErrorAction SilentlyContinue
+            Write-Host ('RustDesk service {0} set to Automatic on this PC.' -f $service.Name) -ForegroundColor Green
+        } catch {
+            Write-Warning ('Could not configure RustDesk service: ' + $_.Exception.Message)
+        }
+    }
+
+    $exe = Find-RustDeskExe
+    if ($exe) {
+        $shortcutPath = Join-Path $ShortcutFolder 'RustDesk.lnk'
+        $shell = New-Object -ComObject WScript.Shell
+        $shortcut = $shell.CreateShortcut($shortcutPath)
+        $shortcut.TargetPath = $exe
+        $shortcut.WorkingDirectory = Split-Path -Parent $exe
+        $shortcut.WindowStyle = 7
+        $shortcut.Save()
+        Write-Host 'RustDesk startup shortcut added for this user.' -ForegroundColor Green
+    } else {
+        Write-Warning 'RustDesk was not found. Install it, or enable its own "run on startup" setting.'
+    }
+    Write-Host 'In RustDesk, set a permanent password so unattended access keeps working.' -ForegroundColor Yellow
+}
+
+function Set-AlwaysOnPower {
+    powercfg /change standby-timeout-ac 0 | Out-Null
+    powercfg /change standby-timeout-dc 0 | Out-Null
+    powercfg /change hibernate-timeout-ac 0 | Out-Null
+    powercfg /change hibernate-timeout-dc 0 | Out-Null
+    Write-Host 'Sleep and hibernate disabled for this Windows power plan.' -ForegroundColor Green
+    Write-Host 'BIOS: set "Restore on AC Power Loss" to Power On so the PC starts when power returns.' -ForegroundColor Yellow
 }
 
 Assert-Admin
@@ -223,6 +336,15 @@ $shortcut.Arguments = ('-NoProfile -ExecutionPolicy Bypass -File "{0}"' -f (Join
 $shortcut.WorkingDirectory = $repo
 $shortcut.WindowStyle = 1
 $shortcut.Save()
+
+# --- optional unattended startup (THIS PC ONLY) -----------------------------
+if ($Unattended) {
+    Write-Host ''
+    Write-Host '--- Unattended startup setup (this PC only) ---' -ForegroundColor Cyan
+    if (-not $SkipAutoLogin) { Enable-AutoLogin -OwnerAccount $Owner }
+    if (-not $SkipRustDesk) { Enable-RustDeskStartup -ShortcutFolder $StartupFolder }
+    if (-not $SkipPower) { Set-AlwaysOnPower }
+}
 
 Start-ScheduledTask -TaskName 'CpuMiner-LHM'
 Start-ScheduledTask -TaskName 'CpuMiner-Supervisor'

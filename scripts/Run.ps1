@@ -5,6 +5,12 @@
 # It installs only when needed (one UAC prompt), starts mining immediately,
 # waits for the heat sensor, then opens the control panel. Running it again is
 # safe: existing installs are detected and no binaries are downloaded again.
+# Use -Unattended to also configure auto-login, RustDesk startup and no-sleep.
+
+param(
+    [switch]$Unattended,
+    [switch]$BlankPassword
+)
 
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -35,8 +41,14 @@ function Invoke-FirstInstall {
         '-Owner', ('"{0}"' -f $owner),
         '-StartupFolder', ('"{0}"' -f $startup)
     )
+    if ($Unattended) { $argList += '-Unattended' }
+    if ($BlankPassword) { $argList += '-BlankPassword' }
 
-    Write-Host 'First run: installing. Approve the Windows admin prompt if it appears.' -ForegroundColor Yellow
+    if ($Unattended) {
+        Write-Host 'Unattended setup: approve the Windows admin prompt if it appears.' -ForegroundColor Yellow
+    } else {
+        Write-Host 'First run: installing. Approve the Windows admin prompt if it appears.' -ForegroundColor Yellow
+    }
     try {
         $proc = Start-Process -FilePath 'powershell.exe' -ArgumentList $argList `
             -WorkingDirectory $Script:RepoRoot -Verb RunAs -Wait -PassThru -ErrorAction Stop
@@ -46,17 +58,6 @@ function Invoke-FirstInstall {
     if ($proc.ExitCode -ne 0) {
         throw ('Installer exited with code ' + $proc.ExitCode + '. See the installer window for details.')
     }
-}
-
-function Wait-ForTemperature {
-    param([hashtable]$Config, [int]$TimeoutSeconds = 60)
-    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    while ((Get-Date) -lt $deadline) {
-        $temp = Get-CpuTemp -Config $Config
-        if ($null -ne $temp) { return $temp }
-        Start-Sleep -Seconds 3
-    }
-    return $null
 }
 
 function Show-FailureAndExit {
@@ -75,7 +76,10 @@ try {
     Write-Host ('LTC miner runner - ' + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))
     $wasInstalled = Test-Installed
 
-    if (-not $wasInstalled) {
+    if (-not $wasInstalled -or $Unattended) {
+        if ($Unattended -and $wasInstalled) {
+            Write-Host 'Applying unattended setup to this PC (one UAC/password prompt)...' -ForegroundColor Yellow
+        }
         Invoke-FirstInstall
         if (-not (Test-Installed)) {
             throw 'Installation finished but required files or tasks are still missing.'

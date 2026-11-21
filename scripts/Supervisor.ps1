@@ -65,11 +65,17 @@ function Start-Supervisor {
     Ensure-Dirs
     Write-Log -Component 'supervisor' -Message 'started'
     $cfg = Get-Config
-    if (Test-Path -LiteralPath $Script:WasActive) {
-        Write-Log -Component 'supervisor' -Message 'was active at shutdown -> resuming'
+    $auto = [string]$cfg['AUTO_START_ON_LOGIN']
+    $wasActive = Test-Path -LiteralPath $Script:WasActive
+    if ($auto -eq 'true' -or $wasActive) {
+        if ($auto -eq 'true') {
+            Write-Log -Component 'supervisor' -Message 'auto-start-on-login enabled -> starting'
+        } else {
+            Write-Log -Component 'supervisor' -Message 'was active at shutdown -> resuming'
+        }
         Start-Miner | Out-Null
     } else {
-        Write-Log -Component 'supervisor' -Message 'not active at shutdown -> idle'
+        Write-Log -Component 'supervisor' -Message 'auto-start disabled and not active -> idle'
         Remove-Item -LiteralPath $Script:NextFile -Force -ErrorAction SilentlyContinue
     }
 

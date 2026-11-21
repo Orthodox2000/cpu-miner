@@ -1,8 +1,9 @@
 # Removes the Windows miner setup. Run elevated.
-#   .\scripts\Uninstall.ps1            keeps config/logs/bin
-#   .\scripts\Uninstall.ps1 -RemoveData  deletes everything under ProgramData\CpuMiner too
+#   .\scripts\Uninstall.ps1                    keeps config/logs/bin
+#   .\scripts\Uninstall.ps1 -RemoveData         deletes ProgramData\CpuMiner too
+#   .\scripts\Uninstall.ps1 -RemoveUnattended   also removes auto-login and the RustDesk startup shortcut
 
-param([switch]$RemoveData)
+param([switch]$RemoveData, [switch]$RemoveUnattended)
 
 $ErrorActionPreference = 'Stop'
 function Assert-Admin {
@@ -23,6 +24,15 @@ foreach ($name in @('CpuMiner-Supervisor', 'CpuMiner-LHM')) {
 }
 $startup = [Environment]::GetFolderPath('Startup')
 Remove-Item -LiteralPath (Join-Path $startup 'LTC Miner.lnk') -Force -ErrorAction SilentlyContinue
+if ($RemoveUnattended) {
+    Remove-Item -LiteralPath (Join-Path $startup 'RustDesk.lnk') -Force -ErrorAction SilentlyContinue
+    $key = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+    Set-ItemProperty -Path $key -Name 'AutoAdminLogon' -Value '0' -Type String
+    foreach ($name in @('DefaultPassword', 'DefaultUserName', 'DefaultDomainName', 'AutoLogonCount', 'ForceAutoLogon')) {
+        Remove-ItemProperty -Path $key -Name $name -ErrorAction SilentlyContinue
+    }
+    Write-Host 'Auto-login and RustDesk startup shortcut removed.' -ForegroundColor Yellow
+}
 
 foreach ($rule in @('CpuMiner XMRig allow pool TLS', 'CpuMiner XMRig allow DNS',
                    'CpuMiner XMRig block other TCP', 'CpuMiner XMRig block other UDP')) {

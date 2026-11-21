@@ -25,20 +25,21 @@ function Ensure-Dirs {
 
 function Get-Config {
     $cfg = @{
-        PAYOUT_COIN      = 'LTC'
-        WALLET           = ''
-        POOL             = 'stratum+ssl://rx.unmineable.com:443'
-        POOL_WORKER      = 'HomePC'
-        API_PORT         = '18080'
-        MAX_THREADS      = '100'
-        DONATE_LEVEL     = '0'
-        STOP_TEMP        = '75'
-        RESUME_TEMP      = '65'
-        RESTART_MINUTES  = '45'
-        WATCHDOG_SECONDS = '180'
-        TEMP_SECONDS     = '60'
-        TEMP_REQUIRED    = 'true'
-        LHM_URL          = 'http://127.0.0.1:8085/data.json'
+        PAYOUT_COIN         = 'LTC'
+        WALLET              = ''
+        POOL                = 'stratum+ssl://rx.unmineable.com:443'
+        POOL_WORKER         = 'HomePC'
+        API_PORT            = '18080'
+        MAX_THREADS         = '100'
+        DONATE_LEVEL        = '0'
+        STOP_TEMP           = '75'
+        RESUME_TEMP         = '65'
+        RESTART_MINUTES     = '45'
+        WATCHDOG_SECONDS    = '180'
+        TEMP_SECONDS        = '60'
+        TEMP_REQUIRED       = 'true'
+        LHM_URL             = 'http://127.0.0.1:8085/data.json'
+        AUTO_START_ON_LOGIN = 'true'
     }
     if (Test-Path -LiteralPath $Script:ConfigPath) {
         foreach ($line in (Get-Content -LiteralPath $Script:ConfigPath)) {
@@ -144,6 +145,17 @@ function Get-CpuTemp {
     }
     $best = $candidates | Sort-Object -Property Score -Descending | Select-Object -First 1
     return [double]$best.Value
+}
+
+function Wait-ForTemperature {
+    param($Config, [int]$TimeoutSeconds = 60)
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        $temp = Get-CpuTemp -Config $Config
+        if ($null -ne $temp) { return $temp }
+        Start-Sleep -Seconds 3
+    }
+    return $null
 }
 
 function Get-CoolingState {

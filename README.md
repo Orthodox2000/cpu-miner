@@ -7,7 +7,7 @@ pays out as Litecoin through Unmineable, and keeps the same behaviour:
 - background mining that survives closing the window
 - watchdog restart if XMRig dies
 - **automatic restart every 45 minutes**
-- resume mining after a PC reboot **only if it was active at shutdown**
+- start mining at every login by default (configurable fallback: resume only if it was active)
 - conservative heat guard: **stop at 75 °C, resume at 65 °C**
 
 Nothing in this repo restarts or shuts down the PC — only the miner process.
@@ -31,6 +31,32 @@ Keep the folder after installation: the scheduled tasks launch its scripts.
 
 See [docs/SCRIPTS.md](docs/SCRIPTS.md) for a description of every script and
 state/log file.
+
+## Unattended boot (this PC only)
+
+If you want the PC to come up by itself when power returns:
+
+1. In BIOS/UEFI set **Restore on AC Power Loss / AC Recovery = Power On**.
+   Windows cannot change this firmware setting.
+2. Double-click **`UNATTENDED.cmd`**. If the Windows account truly has no
+   password, use `UNATTENDED.cmd -BlankPassword`.
+3. It performs the normal install, then configures:
+   - Windows auto-login for the account that launched it;
+   - RustDesk service = Automatic plus a RustDesk Startup shortcut;
+   - sleep and hibernate = Never on the current power plan.
+
+Everything is scoped to this computer and this user. No domain or other PC is
+changed.
+
+Warnings:
+
+- Skipping the sign-in prompt means anyone with physical access reaches the
+  desktop. Only do this on a physically secure machine.
+- Blank-password auto-login is unreliable on Windows 10; keeping a password is
+  more reliable. The password is stored only in the local Windows registry.
+- Set a permanent password **inside RustDesk** for unattended access. This repo
+  never stores it.
+- To revert, run `Uninstall.ps1 -RemoveUnattended`.
 
 ## Payout wallet
 
@@ -118,14 +144,17 @@ Headless commands:
 
 ## What happens after a reboot
 
-`%ProgramData%\CpuMiner\state\was-active` is written when mining starts and
-removed when it stops. At login:
+`AUTO_START_ON_LOGIN=true` by default, so mining and the 45-minute scheduler
+start at every login. The `state\was-active` marker is still written when mining
+starts and removed when it stops; it is used as a fallback.
 
-- if the marker exists → mining and the 45-minute scheduler resume;
-- if it does not → the control window simply opens, stopped.
+If you set `AUTO_START_ON_LOGIN=false`, the old behaviour returns:
 
-The scheduled tasks themselves are not "Run on startup" boot miners; they are
-At-Log-On tasks, matching the manual-start design.
+- marker exists → mining resumes;
+- marker absent → the control window opens, stopped.
+
+The scheduled tasks themselves are At-Log-On tasks, not boot-time services.
+With `UNATTENDED.cmd`, Windows auto-login reaches that logon automatically.
 
 ## Heat control
 
@@ -163,6 +192,7 @@ PAYOUT_COIN=LTC
 WALLET=...
 STOP_TEMP=75
 RESUME_TEMP=65
+AUTO_START_ON_LOGIN=true
 ```
 
 The PowerShell validator supports LTC and SOL. For other coins, keep the Python
@@ -174,7 +204,8 @@ validator from the Linux setup available and extend `Validate-Wallet.ps1`.
 powershell.exe -ExecutionPolicy Bypass -File .\scripts\Uninstall.ps1
 ```
 
-Add `-RemoveData` to also delete `%ProgramData%\CpuMiner`.
+Add `-RemoveData` to also delete `%ProgramData%\CpuMiner`. Add
+`-RemoveUnattended` to undo auto-login and the RustDesk startup shortcut.
 
 ## Notes
 
